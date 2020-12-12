@@ -1,0 +1,497 @@
+---
+title: "Proyecto Firmografics"
+author: "Jorge Gómez-Lechón"
+date: "12/7/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Objectivos e introducción
+
+El objetivo del presente estudio es analizar la economía del sector de la construcción, uno de los más relevantes para España. Se emplearán diversas técnicas de transformación (principalmente en dplyr) y visualización (ggplot2). 
+
+En el marco de análisis, se pretende llevar a cabo un "baseline" del sector de la construcción en España. Para esto, distinguimos dos apartados: análisis externo e interno.
+
+-Análisis externo (o benchmarking): pretende comparar España frente al resto de paises Europeos a través de múltiples métricas como la productividad, el valor añadido, el impacto en empleo, etc. El objetivo de este apartado es entender la posición competitiva de España de la manera más granular posible.
+
+-Análisis interno: pretende determinar las fortalezas y debilidades de la cadena de valor de la construcción, analizando granularmente cada agente respecto a distintas medidas de eficiencia y de impacto.
+
+
+## Implicaciones 
+La combinación de ambos análisis puede servir de input para el desarrollo de una estrategia nacional del sector o como estudio de mercado para el sector privado para la toma de decisiones de inversión inmobiliaria. En concreto, se espera que el estudio permita:
+
+-Entender la posición competitiva del país en el sector de la construcción
+-Detectar oportunidades de mejora sectorial
+-Detectar barreras al desarrollo del sector
+-Identificar oportunidades de inversión en función del retorno y la dificultad
+
+## Adquisición de datos y preprocesamiento
+```{r}
+##Cargamos las librerías necesarias
+
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(rmarkdown)
+library(latexpdf)
+
+```
+
+```{r}
+##Cargamos los datos desde Eurostats
+construction <- read_csv("Transf_sbs_na_con_r2_1_Data.csv")
+
+```
+
+```{r}
+#Primer contacto con la base de datos y su dimensionalidad
+dim(construction)
+head(construction)
+unique(construction$INDIC_SB)
+
+```
+La base de datos cuenta con más de 75k registros para los principales paises europeos a través 32 métricas relevantes (arriba) para entender el sector de la construcción. Esta información se presenta en distintos niveles de granularidad, desde el nivel "Construcción" pasando por elementos especificos de la cadena de valor como "Instalación electrica".
+
+```{r}
+#Limpiamos los registros con nombres muy largos, en concreto Alemania
+construction2 <- construction %>% mutate(GEO = ifelse(GEO == "Germany (until 1990 former territory of the FRG)", "Germany", GEO))
+```
+
+
+```{r}
+#Datos vienen como "Char", hay que convertir value a numérico
+construction$Value = as.numeric(construction$Value)
+#Observamos la base de datos
+head(construction2)
+```
+
+## Análisis externo:
+# Resumen ejecutivo del análisis externo:
+* España es uno de los paises que generan un mayor impacto absoluto en el PIB de la construcción en Europa
+* Sin embargo, cuenta con una de los peores ratios de productividad en el sector
+* En los últimos años, no se ha revertido esta situación, ya que el crecimiento de la productividad es inferior al de la Eurozona
+* Las empresas del sector construcción presentan un margen de beneficios del 8%, que se situa en la mediana Europea
+* Las diferencias entre productividad y margen de beneficio se explican principalmente por la precariedad laboral de los trabajadores del sector, con uno de los salarios más bajos en Europa
+* La mayor ventaja competitiva del país es su capacidad para atraer inversión, la cual sigue aumentando año a año respecto a la Eurozona
+
+
+# Valor añadido de la construcción:
+Observamos que España se encuentra entre los paises que más aportan al PIB Europeo por medio del sector de la construcción, tan solo después de Alemania, Francia e Italia.
+
+España generó en 2018 un valor añadido de casi 50,000 millones al PIB Español.
+
+
+```{r}
+valueadded_pais18 = construction2 %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Value added at factor cost - million euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+
+#Visualización:
+library(ggplot2)
+library(scales)
+theme_set(theme_classic())
+
+# Plot
+ggplot(valueadded_pais18, aes(x=valueadded_pais18$GEO, y=valueadded_pais18$Value)) + 
+  geom_point(col="#61c87f", size=3) +   # Draw points
+  geom_segment(aes(x=valueadded_pais18$GEO, 
+                   xend=valueadded_pais18$GEO, 
+                   y=min(valueadded_pais18$Value), 
+                   yend=max(valueadded_pais18$Value)), 
+               linetype="dashed", 
+               size=0.1,
+               ) +   # Draw dashed lines
+  labs(title="Impacto de la construcción en Europa", 
+       subtitle="Gross value added ", 
+       caption="source: Eurostat",
+       y="Valor añadido por país",
+       x="Countries") +  
+  coord_flip()
+
+
+```
+
+
+## Productividad:
+```{r}
+#Ranking de productividad por país en construcción
+
+sp_prodPais_pais18 = construction2 %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Apparent labour productivity (Gross value added per person employed) - thousand euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+
+#Visualización:
+library(ggplot2)
+library(scales)
+theme_set(theme_classic())
+
+# Plot
+ggplot(sp_prodPais_pais18, aes(x=sp_prodPais_pais18$GEO, y=sp_prodPais_pais18$Value)) + 
+  geom_point(col="#61c87f", size=3) +   # Draw points
+  geom_segment(aes(x=sp_prodPais_pais18$GEO, 
+                   xend=sp_prodPais_pais18$GEO, 
+                   y=min(sp_prodPais_pais18$Value), 
+                   yend=max(sp_prodPais_pais18$Value)), 
+               linetype="dashed", 
+               size=0.1,
+               ) +   # Draw dashed lines
+  labs(title="Productivity Ranking", 
+       subtitle="Gross value added per person employed", 
+       caption="source: Eurostat",
+       y="Productivity",
+       x="Countries") +  
+  coord_flip()
+```
+
+Observamos que a nivel productividad en la construcción, España está a la cola junto con Grecia, Polonia, Hungría y Portugal. A la cabeza encontramos a los paises nórdicos, Alemania y Suiza. Este insight coincide perfectamente con el estereotipo de la productividad.
+
+En otras palabras, España es de los mayores constructores de Europa, pero con una de las peores productividades del sector. 
+
+## Rentabilidad
+
+```{r}
+#Ranking de rentabilidad media por empresa por país
+
+grossmargin_pais18 = construction2 %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Gross operating surplus/turnover (gross operating rate) - percentage") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+
+
+#Visualización:
+library(ggplot2)
+library(scales)
+theme_set(theme_classic())
+
+# Plot
+ggplot(grossmargin_pais18, aes(x=grossmargin_pais18$GEO, y=grossmargin_pais18$Value)) + 
+  geom_point(col="#61c87f", size=3) +   # Draw points
+  geom_segment(aes(x=grossmargin_pais18$GEO, 
+                   xend=grossmargin_pais18$GEO, 
+                   y=min(grossmargin_pais18$Value), 
+                   yend=max(grossmargin_pais18$Value)), 
+               linetype="dashed", 
+               size=0.1,
+               ) +   # Draw dashed lines
+  labs(title="Ranking de rentabilidad de las empresas", 
+       subtitle="Gross operating margin", 
+       caption="source: Eurostat",
+       y="Rentabilidad de las empresas",
+       x="Countries") +  
+  coord_flip()
+
+```
+
+Se observa que el margen de rentabilidad medio en las empresas de construcción españolas (operativo) es de más de un 8%, que se encuentra aproximadamente en la mediana del sector a nivel Europeo.
+
+Este descubrimiento nos lleva a preguntarnos: ¿cómo es posible que una productividad tan baja resulte en un retorno mediano? Mi hipótesis es que se debe a unas condiciones laborales precarias/ salarios muy bajos en el sector. 
+
+Para comprobarlo, compararemos, de nuevo, el salario medio de los trabajadores de la construcción en Europa para validar/invalidar esta hipótesis.
+
+```{r}
+#Ranking de rentabilidad media por empresa por país
+
+#Tabla de salarios
+avgwage_pais18 = construction2 %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Wages and Salaries - million euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+
+#Tabla de empleados
+num_emp_2018 = construction2 %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Employees - number") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+#Join de las dos tablas
+comparacion_salario_emp = inner_join(avgwage_pais18, num_emp_2018, by= "GEO", copy = FALSE)
+comparacion_salario_emp = comparacion_salario_emp[, c(2,5,10)]
+colnames(comparacion_salario_emp) <- c("GEO", "Total Wages", "Number of Employees")
+
+View(comparacion_salario_emp)
+
+comparacion_salario_emp = comparacion_salario_emp %>%
+  mutate((`Total Wages`)*1000000/`Number of Employees`) %>%
+  arrange(desc((`Total Wages`)*1000000/`Number of Employees`))
+
+comparacion_salario_emp
+
+```
+Así, validamos como España se encuentra entre los paises con menor renta per capita entre los trabajadores de la construcción. Esto confirma la premisa de que la rentabilidad en la industria de la construcción, queda sostenida por la precariedad laboral.
+
+## Inversión por país
+Se continúa analizando la inversión en el sector por país y se observa lo siguiente:
+
+```{r}
+#Crecimiento de InversiÃ³n. EspaÃ±a primera en incremento de la inversiÃ³n.
+sp_inv_act15 = construction %>%
+  filter(TIME == 2015) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Net investment in tangible goods - million euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+sp_inv_act18 = construction %>%
+  filter(TIME == 2018) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Net investment in tangible goods - million euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+comparacion_anual_invSpain = inner_join(sp_inv_act18, sp_inv_act15, by= "GEO", copy = FALSE)
+comparacion_anual_invSpain = comparacion_anual_invSpain[, c(2,5,10)]
+colnames(comparacion_anual_invSpain) <- c("GEO", "Y18", "Y15")
+
+comparacion_anual_invSpain = comparacion_anual_invSpain %>%
+  mutate(Y18/Y15)%>%
+  arrange(desc(Y18/Y15))
+
+# Plot
+ggplot(comparacion_anual_invSpain, aes(x=comparacion_anual_invSpain$GEO, y=comparacion_anual_invSpain$`Y18/Y15`)) + 
+  geom_point(col="#61c87f", size=3) +   # Draw points
+  geom_segment(aes(x=comparacion_anual_invSpain$GEO, 
+                   xend=comparacion_anual_invSpain$GEO, 
+                   y=min(comparacion_anual_invSpain$`Y18/Y15`), 
+                   yend=max(comparacion_anual_invSpain$`Y18/Y15`)), 
+               linetype="dashed", 
+               size=0.1,
+               ) +   # Draw dashed lines
+  labs(title="Ranking de crecimiento de la inversión", 
+       subtitle="Net tangible asset investments", 
+       caption="source: Eurostat",
+       y="Crecimiento de la inversión",
+       x="Countries") +  
+  coord_flip()
+
+```
+
+Nuestro país es el que presenta un mayor incremento en la inversión neta (tanto extranjera como doméstica), lo que explica la competitividad de España a nivel Europeo en el sector de la construcción. Otra manera de visualizar el crecimiento consiste en observar la diferencia absoluta entre 2015 y 2018:
+
+```{r}
+library(ggplot2)
+library(ggalt)
+theme_set(theme_classic())
+
+comparacion_anual_invSpain$GEO <- factor(comparacion_anual_invSpain$GEO, levels=as.character(comparacion_anual_invSpain$GEO))  # for right ordering of the dumbells
+
+# Hacemos factor el campo GEO
+gg <- ggplot(comparacion_anual_invSpain, aes(x=comparacion_anual_invSpain$Y15, xend=comparacion_anual_invSpain$Y18, y=comparacion_anual_invSpain$GEO, group=comparacion_anual_invSpain$GEO)) + 
+        geom_dumbbell(color="#a3c4dc", 
+                      size=0.75, 
+                      point.colour.l="#0e668b") + 
+        scale_x_continuous() + 
+        labs(x=NULL, 
+             y=NULL, 
+             title="Crecimiento en la inversión en construcción", 
+             subtitle="Change: 2015 vs 2018 in millions", 
+             caption="Source: Eurostat") +
+        theme(plot.title = element_text(hjust=0.5, face="bold"),
+              plot.background=element_rect(fill="#f7f7f7"),
+              panel.background=element_rect(fill="#f7f7f7"),
+              panel.grid.minor=element_blank(),
+              panel.grid.major.y=element_blank(),
+              panel.grid.major.x=element_line(),
+              axis.ticks=element_blank(),
+              legend.position="top",
+              panel.border=element_blank())
+plot(gg)
+```
+
+## Crecimiento de la productividad
+
+Finalmente, estudiamos el crecimiento de la productividad entre 2015 a 2018:
+
+```{r}
+sp_prodPais_pais15 = construction2 %>%
+  filter(TIME == 2015) %>%
+  filter(NACE_R2 == "Construction" ) %>%
+  filter(INDIC_SB == "Apparent labour productivity (Gross value added per person employed) - thousand euro") %>%
+  group_by(GEO)%>%
+  arrange(desc(Value))
+
+comparacion_anual_prod = inner_join(sp_prodPais_pais18, sp_prodPais_pais15, by= "GEO", copy = FALSE)
+comparacion_anual_prod = comparacion_anual_prod[, c(2,5,10)]
+
+colnames(comparacion_anual_prod) <- c("GEO", "Y18", "Y15")
+
+comparacion_anual_prod = comparacion_anual_prod %>%
+  mutate(Y18/Y15)%>%
+  arrange(desc(Y18/Y15))
+
+# Plot
+library(ggplot2)
+library(ggalt)
+theme_set(theme_classic())
+
+comparacion_anual_prod$GEO <- factor(comparacion_anual_prod$GEO, levels=as.character(comparacion_anual_prod$GEO))  # for right ordering of the dumbells
+
+# Hacemos factor el campo GEO
+gg <- ggplot(comparacion_anual_prod, aes(x=comparacion_anual_prod$Y15, xend=comparacion_anual_prod$Y18, y=comparacion_anual_prod$GEO, group=comparacion_anual_prod$GEO)) + 
+        geom_dumbbell(color="#a3c4dc", 
+                      size=0.75, 
+                      point.colour.l="#0e668b") + 
+        scale_x_continuous() + 
+        labs(x=NULL, 
+             y=NULL, 
+             title="Crecimiento en la productividad en el sector", 
+             subtitle="Change: 2015 vs 2018 in %", 
+             caption="Source: Eurostat") +
+        theme(plot.title = element_text(hjust=0.5, face="bold"),
+              plot.background=element_rect(fill="#f7f7f7"),
+              panel.background=element_rect(fill="#f7f7f7"),
+              panel.grid.minor=element_blank(),
+              panel.grid.major.y=element_blank(),
+              panel.grid.major.x=element_line(),
+              axis.ticks=element_blank(),
+              legend.position="top",
+              panel.border=element_blank())
+plot(gg)
+
+```
+
+España presenta un incremento de la productividad de 20%, situándose cerca de la mediana de crecimiento.
+
+#Análisis interno:
+# Resumen ejecutivo del análisis externo:
+Se ha indagado en los distintos sectores que componen la cadena de valor de la construcción. Así, se han priorizado seis sub-sectores que deberían apoyarse urgentemente para fortalecer la posición competitiva de España a nivel Europeo:
+
+1. Construction of buildings
+2. Specialized construction activities
+3. Construction of residential and non-residential buildings
+4. Electrical and plumbing
+5. Electrical installation
+6. Completion & finishing
+
+
+# Rentabilidad media por sub-sector: la cadena de valor de la construcción
+
+Para empezar el análisis interno, se estudian los diferentes sub-sectores de la construcción y sus rentabilidades medias. De esta manera, se podrá priorizar iniciativas para incrementar el impacto del sector en la economía:
+```{r}
+sp_revenue_act = construction %>%
+  filter(GEO == "Spain") %>%
+  filter(TIME == 2018) %>%
+  filter(INDIC_SB == "Turnover or gross premiums written - million euro") %>%
+  group_by(NACE_R2)%>%
+  arrange(desc(Value))
+sp_profitability_act = construction %>%
+  filter(GEO == "Spain") %>%
+  filter(TIME == 2018) %>%
+  filter(INDIC_SB == "Gross operating surplus/turnover (gross operating rate) - percentage") %>%
+  group_by(NACE_R2)%>%
+  arrange(desc(Value))
+profit_pools_spain = inner_join(sp_revenue_act, sp_profitability_act, by= "NACE_R2", copy = FALSE)
+profit_pools_spain = profit_pools_spain[, c(3,5,10)]
+colnames(comparacion_anual_invSpain) <- c("Sub-sector", "Revenues", "Profitability")
+
+profit_pools_spain = unique(profit_pools_spain)
+
+ggplot(data=profit_pools_spain, aes(x=profit_pools_spain$NACE_R2, y=profit_pools_spain$Value.y)) +
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=profit_pools_spain$Value.y), vjust=-0.3, size=3.5)+
+  theme_minimal()+  
+  coord_flip() + labs(title="Margen de beneficio por sub-sector", 
+       subtitle="Profit margin by sector in %", 
+       caption="source: Eurostat",
+       y="Profit margin by sector",
+       x="Sectores")
+
+```
+
+## Priorización de sub-sectores
+
+De la misma manera, se debe de priorizar los subsectores en función de su tamaño respecto a los demás. A mayor tamaño del sector en ingresos y margen de beneficio, mayor impacto directo en la economía:
+
+
+```{r}
+#Transformamos la tabla para eliminar los outliers
+profit_pools_spain = unique(profit_pools_spain)
+profit_pools_spain = profit_pools_spain %>%
+  filter(Value.x < 100000)
+
+#Hacemos un scatter-plot
+ggplot(profit_pools_spain, aes(x=profit_pools_spain$Value.x, y=profit_pools_spain$Value.y)) + geom_point(aes(size=profit_pools_spain$Value.x), col="#61c87f") + labs(title="Priorizando areas de mejora", 
+       subtitle="Profit margin vs. gross revenues by sector", 
+       caption="source: Eurostat",
+       y="Revenues by sector",
+       x="Profit margin by sector")
+
+
+```
+
+Así, los subsectores que se encuentran en el cuadrante superior derecho son los que deberían ser priorizados por su potencial impacto en la economía.
+
+Finalmente, debemos de tener en cuenta la productividad. Aquellos sectores que pueden generar un gran impacto en la economía pero que se encuentrar en niveles de productividad bastante inferiores a los europeos. Así, se procede a crear un nuevo scatterplot teniendo en cuenta ambas dimensiones:
+
+```{r}
+profit_pools_spain = unique(profit_pools_spain)
+productivity_vs = construction %>%
+  filter(GEO == "Spain") %>%
+  filter(TIME == 2018) %>%
+  filter(INDIC_SB == "Apparent labour productivity (Gross value added per person employed) - thousand euro") %>%
+  group_by(NACE_R2)%>%
+  arrange(desc(Value))
+
+prioritization = inner_join(profit_pools_spain, productivity_vs, by= "NACE_R2", copy = FALSE)
+prioritization = prioritization[, c(1,2,3,7)]
+colnames(prioritization) <- c("Sectores", "Revenues", "Profit Margin", "Productivity")
+prioritization
+
+```
+Finalmente, volvemos a comparar los ingresos por inductria vs. la productivida. Esta vez, se toma el ancho de los puntos como el margen de beneficios. Así, la siguiente visualización muestra una combinación de los tres elementos que se emplearán para priorizar sub-sectores:
+
+```{r}
+ggplot(prioritization, aes(x=prioritization$Revenues, y=prioritization$Productivity)) + geom_point(aes(size=prioritization$`Profit Margin`),col="#61c87f") + labs(title="Priorizando areas de mejora", 
+       subtitle="Productivity vs. Profit margin vs. gross revenues by sector", 
+       caption="source: Eurostat",
+       y="Productivity",
+       x="Revenues")
+```
+
+
+
+
+Para esta última visualización, los sectores a priorizar se ubican en el *cuadrante inferior derecha*, que *maximizan impacto sobre el PIB* y *espacio para la mejora* a nivel productividad.
+
+Teniendo en cuenta las tres dimensiones, se pueden *priorizar una serie de sub-sectores* para continuar fortaleciendo la posición competitiva de la industria:
+
+1. Construction of buildings
+2. Specialized construction activities
+3. Construction of residential and non-residential buildings
+4. Electrical and plumbing
+5. Electrical installation
+6. Completion & finishing
+
+En cambio, desde un punto de vista empresarial puramente, si tuviesemos que priorizar *sectores en los que invertir*, seguiríamos el siguiente ranking (prioridad "profit margin")
+
+1. Painting and glazing
+2. Site preparation
+3. Completion & finishing
+4. Demolition
+5. Utility and telecom projects
+
+
+
+
+
+
+
